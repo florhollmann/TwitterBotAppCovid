@@ -13,6 +13,14 @@ namespace TwitterBotAppCovid
         [JsonProperty(PropertyName = "Country")]
         public string Country { get; set; }
 
+        [JsonProperty(PropertyName = "Id")]
+        public int Id { get; set; }
+
+        [JsonProperty(PropertyName = "Iso2")]
+        public string Iso2 { get; set; }
+
+        [JsonProperty(PropertyName = "Flag")]
+        public string Flag { get; set; }
 
         [JsonProperty(PropertyName = "CountryInfo")]
         public CountryInfo CountryInfo { get; set; }

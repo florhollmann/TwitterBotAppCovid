@@ -12,16 +12,22 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Ninject.Activation;
 using Microsoft.AspNetCore.Http;
-
+using System.IO;
+using Tweetinvi;
+using System.Diagnostics;
 
 namespace TwitterBotAppCovid
 {
 
     public class Program
     {
-        public System.Collections.Specialized.NameValueCollection QueryString { get; }
+
         static HttpClient client = new HttpClient();
-        static CountryData country = new CountryData();
+
+        public static void ExportToFile(string[] tokenArr)
+        {
+            File.WriteAllLines(Configurations.tokenPath, tokenArr);
+        }
 
         public static List<T> Deserialize<T>(string SerializedJSONString)
         {
@@ -44,22 +50,32 @@ namespace TwitterBotAppCovid
             return listCount;
         }
 
-        static async Task<CountryData> GetCountryAsync(string path)
-        {
-            CountryData country = null;
 
-            HttpResponseMessage response = await client.GetAsync(client.BaseAddress + path);
-            if (response.IsSuccessStatusCode)
-            {
-                country = await response.Content.ReadAsAsync<CountryData>();
-            }
-            return country;
+        public static int[] GetHex(CountryData country)
+        {
+
+            return new int[] { 1, 2};
+        }
+        
+        public static string WriteTweetFormat(CountryData arg, CountryData randomCountry)
+        {
+
+            Emoji argFlag = new Emoji(new int[] { 0x1F1E6, 0x1F1F7 });
+
+            string str = $" Cant. de casos por millon en {arg.Country} {argFlag} vs. {randomCountry.Country} " +
+                $"{arg.CasesPerOneMillion} ///////// {randomCountry.CasesPerOneMillion}";
+            return str;
         }
 
 
-        static void Main()
+        static async Task Main()
         {
+            Console.WriteLine($"<{DateTime.Now}> - Bot Started");
+
             RunAsync().GetAwaiter().GetResult();
+
+
+            Console.WriteLine($"<{DateTime.Now}> - Task Bot Finished");
         }
 
         static async Task RunAsync()
@@ -72,20 +88,73 @@ namespace TwitterBotAppCovid
 
             try
             {
+
+                TwitterClient userClient = new TwitterClient(Configurations.consumerKey, Configurations.consumerSecret);
+
+                //await AuthenticateClientAsync();
+                if (!File.Exists(Configurations.tokenPath))
+                {
+                    // Create a client for your app
+                    TwitterClient appClient = new TwitterClient(Configurations.consumerKey, Configurations.consumerSecret);
+
+                    // Start the authentication process
+                    var authenticationRequest = await appClient.Auth.RequestAuthenticationUrlAsync();
+
+
+
+                    // Go to the URL so that Twitter authenticates the user and gives him a PIN code.
+                    Process.Start(new ProcessStartInfo(authenticationRequest.AuthorizationURL)
+                    {
+                        UseShellExecute = true
+                    });
+
+                    // Ask the user to enter the pin code given by Twitter
+                    Console.WriteLine("Please enter the code and press enter.");
+                    var pinCode = Console.ReadLine();
+
+
+                    // With this pin code it is now possible to get the credentials back from Twitter
+                    var userCredentials = await appClient.Auth.RequestCredentialsFromVerifierCodeAsync(pinCode, authenticationRequest);
+                    string[] tokarr = new string[] { userCredentials.AccessToken, userCredentials.AccessTokenSecret };
+
+                    ExportToFile(tokarr);
+
+                    // You can now save those credentials or use them as followed
+                    userClient = new TwitterClient(userCredentials);
+                    var user = await userClient.Users.GetAuthenticatedUserAsync();
+
+                    Console.WriteLine("Congratulation you have authenticated the user: " + user);
+                    Console.Read();
+                }
+                else
+                {
+                    string[] readText = File.ReadAllLines(Configurations.tokenPath, Encoding.UTF8);
+                    var accessToken = readText[0];
+                    var accessSecretToken = readText[1];
+
+                    userClient = new TwitterClient(Configurations.consumerKey, Configurations.consumerSecret, accessToken, accessSecretToken);
+
+                }
+
                 
                 var listOfCountries = await GetCountryListAsync("?yesterday&sort");
+                Random rand = new Random();
+                var randomCountry = listOfCountries[rand.Next(listOfCountries.Count)];
+                var argentina = listOfCountries.Where(l => l.Country == "Argentina").FirstOrDefault();
+
+                var finalString = WriteTweetFormat(argentina, randomCountry);
+
+                var tweet = await userClient.Tweets.PublishTweetAsync(finalString);
                 
 
-                // Get the countries request
-                //country = await GetCountryAsync("?yesterday&sort");
 
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }
+            
 
-            Console.ReadLine();
         }
     }
 }

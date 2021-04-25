@@ -16,7 +16,7 @@ namespace TwitterBotAppCovid
         [JsonProperty(PropertyName = "Iso2")]
         public string Iso2 { get; set; }
 
-        [JsonProperty(PropertyName = "Flagx")]
+        [JsonProperty(PropertyName = "Flag")]
         public string Flag { get; set; }
 
     }
