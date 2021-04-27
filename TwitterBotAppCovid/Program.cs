@@ -15,6 +15,9 @@ using Microsoft.AspNetCore.Http;
 using System.IO;
 using Tweetinvi;
 using System.Diagnostics;
+using TwitterBotAppCovid.DataHandler;
+using LINQtoCSV;
+using TwitterBotAppCovid.Core;
 
 namespace TwitterBotAppCovid
 {
@@ -51,19 +54,20 @@ namespace TwitterBotAppCovid
         }
 
 
-        public static int[] GetHex(CountryData country)
-        {
 
-            return new int[] { 1, 2};
-        }
         
-        public static string WriteTweetFormat(CountryData arg, CountryData randomCountry)
+        public static string WriteTweetFormat(Country arg, Country randomCountry)
         {
 
             Emoji argFlag = new Emoji(new int[] { 0x1F1E6, 0x1F1F7 });
+            int[] hexDataFlagRandomCountry= CsvHandler.GetFlagDataFromCSV(randomCountry);
+            Emoji countryflag = new Emoji(hexDataFlagRandomCountry);
 
-            string str = $" Cant. de casos por millon en {arg.Country} {argFlag} vs. {randomCountry.Country} " +
-                $"{arg.CasesPerOneMillion} ///////// {randomCountry.CasesPerOneMillion}";
+            string str = $"          {arg.CountryName} {argFlag} - {randomCountry.CountryName} {countryflag} " + "\n\r" +
+                $"Casos por millon de habitantes {arg.DailyCases} / {randomCountry.DailyCases}" + "\n\r" +
+                 $"Cantidad de vacunas aplicadas {arg.VaccinationNumber} / {randomCountry.VaccinationNumber}"+ "\n\r" +
+                $"Porcentaje vacunados 0 / 0" + "\n\r" + 
+                $"";
             return str;
         }
 
@@ -137,14 +141,25 @@ namespace TwitterBotAppCovid
                 }
 
                 
+                //Get countries from api
                 var listOfCountries = await GetCountryListAsync("?yesterday&sort");
                 Random rand = new Random();
                 var randomCountry = listOfCountries[rand.Next(listOfCountries.Count)];
                 var argentina = listOfCountries.Where(l => l.Country == "Argentina").FirstOrDefault();
 
-                var finalString = WriteTweetFormat(argentina, randomCountry);
+                //Download data from Our World in Data
+                //Process.Start(new ProcessStartInfo("https://covid.ourworldindata.org/data/owid-covid-data.csv"));
+                var result = CsvHandler.GetVaccineDataFromCSV(argentina, randomCountry);
+
+                Country arg = new Country(argentina.Country, argentina.CasesPerOneMillion, result.Where(i => i.location == argentina.Country).Select(i => i.people_vaccinated).FirstOrDefault());
+
+
+                Country randomSelectedCountry = new Country(randomCountry.Country, randomCountry.CasesPerOneMillion, result.Where(i => i.location == randomCountry.Country).Select(i => i.people_vaccinated).FirstOrDefault());
+                var finalString = WriteTweetFormat(arg, randomSelectedCountry);
 
                 var tweet = await userClient.Tweets.PublishTweetAsync(finalString);
+
+                File.Delete(Configurations.csvVaccinesDataFile);
                 
 
 
